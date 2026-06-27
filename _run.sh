@@ -1,6 +1,5 @@
 #!/bin/bash
 cd "$(dirname "$0")" || exit
-source ./.env/bin/activate
-# 直接运行Python应用，HTTPS/HTTP配置在app.py中处理
+source ./venv/bin/activate
 echo "server on :5004"
 exec python main.py 1>/dev/null

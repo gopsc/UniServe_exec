@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>💻 命令执行控制台</title>
+    <title>💻 交互式终端</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@4.19.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@4.19.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -11,298 +15,210 @@
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-            height: 100vh;
+        html, body {
+            height: 100%;
+            width: 100%;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #00ff41;
+            position: fixed;
+            background: #0a0a0a;
         }
 
-        /* 终端风格容器 */
-        .terminal-container {
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #app {
+            height: 100%;
             width: 100%;
-            max-width: 800px;
-            height: 100vh;
-            max-height: 850px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 255, 65, 0.15), 0 0 30px rgba(0, 255, 65, 0.05);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            position: relative;
-            border: 1px solid rgba(0, 255, 65, 0.2);
+            background: #0a0a0a;
         }
 
-        @media (min-width: 801px) {
-            .terminal-container {
-                height: 90vh;
-                border-radius: 20px;
-            }
-        }
-
-        /* 终端标题栏 */
-        .terminal-header {
-            background: rgba(0, 0, 0, 0.95);
-            border-bottom: 1px solid rgba(0, 255, 65, 0.3);
-            padding: 12px 20px;
+        /* 顶部状态栏 */
+        .top-bar {
+            background: rgba(0, 0, 0, 0.9);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+            padding: 8px 20px;
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
             flex-shrink: 0;
+            height: 48px;
+            z-index: 10;
         }
 
-        .terminal-header .title {
+        .top-bar .title {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 0.95rem;
+            gap: 12px;
             color: #00ff41;
+            font-size: 14px;
             font-weight: bold;
             letter-spacing: 1px;
         }
 
-        .terminal-header .title .dot {
+        .top-bar .title .dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
             display: inline-block;
-            box-shadow: 0 0 10px currentColor;
         }
 
-        .dot.green {
+        .top-bar .title .dot.green {
             background: #00ff41;
-            color: #00ff41;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
         }
 
-        .dot.yellow {
+        .top-bar .title .dot.yellow {
             background: #ffdd57;
-            color: #ffdd57;
+            box-shadow: 0 0 10px rgba(255, 221, 87, 0.5);
         }
 
-        .dot.red {
+        .top-bar .title .dot.red {
             background: #ff3860;
-            color: #ff3860;
+            box-shadow: 0 0 10px rgba(255, 56, 96, 0.5);
         }
 
-        .user-info {
+        .top-bar .user-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 15px;
+            color: #8899aa;
+            font-size: 13px;
         }
 
-        #authStatus {
-            font-size: 0.8rem;
-            padding: 5px 12px;
-            border-radius: 4px;
-            background: rgba(255, 56, 96, 0.2);
-            color: #ff3860;
-            border: 1px solid rgba(255, 56, 96, 0.3);
-            font-family: inherit;
-        }
-
-        #authStatus.authenticated {
-            background: rgba(0, 255, 65, 0.15);
+        .top-bar .user-info .username {
             color: #00ff41;
-            border: 1px solid rgba(0, 255, 65, 0.3);
         }
 
-        .logout-btn {
-            background: transparent;
-            border: 1px solid rgba(0, 255, 65, 0.4);
-            color: #00ff41;
-            padding: 6px 14px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: 0.2s;
-        }
-
-        .logout-btn:hover {
-            background: rgba(0, 255, 65, 0.1);
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-        }
-
-        /* 输出区域 */
-        .output-area {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            background: rgba(0, 0, 0, 0.8);
-            font-size: 0.85rem;
-            line-height: 1.6;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .output-area::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .output-area::-webkit-scrollbar-track {
-            background: rgba(0, 255, 65, 0.05);
-        }
-
-        .output-area::-webkit-scrollbar-thumb {
-            background: rgba(0, 255, 65, 0.2);
-            border-radius: 3px;
-        }
-
-        .command-line {
-            display: flex;
-            margin-bottom: 4px;
-            animation: fadeIn 0.2s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .prompt {
-            color: #00ff41;
-            font-weight: bold;
-            margin-right: 8px;
-            white-space: nowrap;
-            user-select: none;
-        }
-
-        .command-text {
-            color: #ffffff;
-        }
-
-        .output-text {
-            color: #b8b8b8;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-bottom: 8px;
-            padding-left: 16px;
-            border-left: 2px solid rgba(0, 255, 65, 0.2);
-        }
-
-        .error-text {
-            color: #ff3860;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-bottom: 8px;
-            padding-left: 16px;
-            border-left: 2px solid rgba(255, 56, 96, 0.3);
-        }
-
-        .system-message {
-            color: #ffdd57;
-            font-style: italic;
-            margin: 8px 0;
-            padding: 4px 0;
-        }
-
-        /* 输入区域 */
-        .input-area {
+        .top-bar .user-info .status {
             display: flex;
             align-items: center;
-            padding: 12px 16px;
-            background: rgba(0, 0, 0, 0.9);
-            border-top: 1px solid rgba(0, 255, 65, 0.2);
-            gap: 10px;
-            flex-shrink: 0;
+            gap: 6px;
         }
 
-        .prompt-symbol {
-            color: #00ff41;
-            font-weight: bold;
-            font-size: 1rem;
-            user-select: none;
+        .top-bar .user-info .status .dot-small {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
         }
 
-        #commandInput {
-            flex: 1;
-            padding: 12px 16px;
-            border-radius: 4px;
-            border: 1px solid rgba(0, 255, 65, 0.3);
-            outline: none;
-            font-size: 0.9rem;
-            background: rgba(0, 0, 0, 0.7);
-            color: #00ff41;
-            font-family: inherit;
-            transition: 0.2s;
+        .top-bar .user-info .status .dot-small.online {
+            background: #00ff41;
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
         }
 
-        #commandInput:focus {
-            border-color: #00ff41;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-            background: rgba(0, 0, 0, 0.9);
+        .top-bar .user-info .status .dot-small.offline {
+            background: #ff3860;
+            box-shadow: 0 0 8px rgba(255, 56, 96, 0.5);
         }
 
-        #commandInput::placeholder {
-            color: rgba(0, 255, 65, 0.3);
+        .top-bar .user-info .status .dot-small.connecting {
+            background: #ffdd57;
+            animation: pulse 1s infinite;
         }
 
-        #executeBtn {
-            background: transparent;
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 12px 20px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: 0.2s;
-            white-space: nowrap;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
-        #executeBtn:hover:not(:disabled) {
-            background: rgba(0, 255, 65, 0.15);
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
-        }
-
-        #executeBtn:active:not(:disabled) {
-            transform: scale(0.96);
-        }
-
-        #executeBtn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            border-color: rgba(0, 255, 65, 0.2);
-        }
-
-        /* 快捷命令 */
-        .quick-commands {
+        .top-bar .actions {
             display: flex;
             gap: 8px;
-            padding: 8px 16px;
-            background: rgba(0, 0, 0, 0.95);
-            border-top: 1px solid rgba(0, 255, 65, 0.1);
-            overflow-x: auto;
-            flex-shrink: 0;
         }
 
-        .quick-cmd {
-            background: rgba(0, 255, 65, 0.05);
-            border: 1px solid rgba(0, 255, 65, 0.2);
-            color: #00ff41;
-            padding: 4px 12px;
+        .top-bar .actions button {
+            padding: 5px 14px;
+            border: 1px solid rgba(0, 255, 65, 0.25);
             border-radius: 4px;
-            font-size: 0.75rem;
+            background: transparent;
+            color: #00ff41;
             cursor: pointer;
-            white-space: nowrap;
+            font-size: 12px;
+            transition: all 0.3s;
             font-family: inherit;
-            transition: 0.2s;
         }
 
-        .quick-cmd:hover {
-            background: rgba(0, 255, 65, 0.15);
-            box-shadow: 0 0 8px rgba(0, 255, 65, 0.2);
+        .top-bar .actions button:hover:not(:disabled) {
+            background: rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.15);
+        }
+
+        .top-bar .actions button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .top-bar .actions button.danger {
+            border-color: rgba(255, 56, 96, 0.3);
+            color: #ff3860;
+        }
+
+        .top-bar .actions button.danger:hover:not(:disabled) {
+            background: rgba(255, 56, 96, 0.1);
+            box-shadow: 0 0 15px rgba(255, 56, 96, 0.15);
+        }
+
+        /* 终端容器 */
+        .terminal-wrapper {
+            flex: 1;
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
+        }
+
+        #terminal-xterm {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            background: #0a0a0a;
+        }
+
+        .xterm {
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        
+        .xterm-viewport {
+            overflow-y: auto !important;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 255, 65, 0.3) #0a0a0a;
+        }
+        
+        .xterm-viewport::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .xterm-viewport::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.25);
+            border-radius: 4px;
+        }
+        
+        .xterm-viewport::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 65, 0.4);
+        }
+        
+        .xterm-screen {
+            width: 100% !important;
+        }
+        
+        .xterm canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
         }
 
         /* 登录遮罩 */
         .login-overlay {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
@@ -312,52 +228,61 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 20;
-            border-radius: 16px;
+            z-index: 1000;
+        }
+
+        .login-overlay.hidden {
+            display: none;
         }
 
         .login-card {
             background: rgba(0, 0, 0, 0.9);
             border: 1px solid rgba(0, 255, 65, 0.3);
-            padding: 32px 28px;
+            padding: 40px 32px;
             border-radius: 12px;
-            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 65, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 65, 0.05);
             width: 85%;
-            max-width: 400px;
+            max-width: 380px;
             text-align: center;
         }
 
+        .login-card .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
         .login-card h3 {
-            margin-bottom: 20px;
-            font-size: 1.5rem;
+            margin-bottom: 12px;
+            font-size: 1.3rem;
             color: #00ff41;
             letter-spacing: 2px;
         }
 
         .login-card p {
-            color: #b8b8b8;
+            color: #8899aa;
             font-size: 0.85rem;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            line-height: 1.6;
         }
 
         #loginBtn {
             background: transparent;
             border: 1px solid #00ff41;
             color: #00ff41;
-            padding: 14px 28px;
+            padding: 12px 28px;
             border-radius: 6px;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 0.95rem;
             width: 100%;
             cursor: pointer;
             font-family: inherit;
             letter-spacing: 1px;
-            transition: 0.2s;
+            transition: 0.3s;
         }
 
-        #loginBtn:hover {
-            background: rgba(0, 255, 65, 0.15);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+        #loginBtn:hover:not(:disabled) {
+            background: rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.15);
         }
 
         #loginBtn:disabled {
@@ -365,99 +290,64 @@
             cursor: not-allowed;
         }
 
-        .hidden {
-            display: none !important;
-        }
-
-        /* 状态栏 */
-        .status-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 16px;
-            background: rgba(0, 0, 0, 0.95);
-            color: #00ff41;
-            font-size: 0.7rem;
-            flex-shrink: 0;
-            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .status-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #ffdd57;
-        }
-
-        .status-dot.connected {
-            background: #00ff41;
-            box-shadow: 0 0 6px #00ff41;
-        }
-
-        .status-dot.error {
-            background: #ff3860;
-            box-shadow: 0 0 6px #ff3860;
-        }
-
-        /* 错误提示 */
-        .error-toast {
+        /* Toast 通知 */
+        .notification {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 56, 96, 0.9);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-            max-width: 350px;
-            font-size: 0.85rem;
-            font-family: inherit;
-            border: 1px solid #ff3860;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 24px;
+            background: rgba(0, 0, 0, 0.92);
+            border-radius: 6px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            border: 1px solid rgba(0, 255, 65, 0.15);
+            color: #00ff41;
+            font-size: 13px;
+            max-width: 90%;
+            text-align: center;
+            animation: slideUp 0.3s ease;
+            pointer-events: none;
         }
 
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .notification.success {
+            border-color: rgba(0, 255, 65, 0.3);
         }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(0, 255, 65, 0.3);
-            border-top: 2px solid #00ff41;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .notification.error {
+            border-color: rgba(255, 56, 96, 0.3);
+            color: #ff3860;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .notification.info {
+            border-color: rgba(100, 181, 246, 0.3);
+            color: #64b5f6;
+        }
+        
+        .notification.warning {
+            border-color: rgba(255, 221, 87, 0.3);
+            color: #ffdd57;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="terminal-container" id="terminalApp">
-        <!-- 状态栏 -->
-        <div class="status-bar">
-            <div class="status-indicator">
-                <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">正在连接...</span>
-            </div>
-            <span id="sessionInfo"></span>
-        </div>
-
+    <div id="app">
         <!-- 登录遮罩 -->
-        <div class="login-overlay hidden" id="loginOverlay">
+        <div class="login-overlay" id="loginOverlay">
             <div class="login-card">
-                <h3>💻 命令执行控制台</h3>
+                <div class="icon">💻</div>
+                <h3>交互式终端</h3>
                 <p>🔐 需要认证后才能使用<br>请先登录文件浏览器</p>
                 <button id="loginBtn">
                     <span id="loginBtnText">验证身份</span>
@@ -465,173 +355,470 @@
             </div>
         </div>
 
-        <!-- 终端主体 -->
-        <div class="terminal-header">
+        <!-- 顶部状态栏 -->
+        <div class="top-bar">
             <div class="title">
-                <span class="dot green"></span>
-                <span>Terminal</span>
+                <span class="dot green" id="statusDot"></span>
+                <span id="statusText">终端</span>
+                <span style="color: #8899aa; font-weight: normal; font-size: 12px;" id="sessionInfo"></span>
             </div>
             <div class="user-info">
-                <span id="authStatus">未认证</span>
-                <button class="logout-btn" id="logoutBtn">退出</button>
+                <span class="status">
+                    <span class="dot-small offline" id="wsDot"></span>
+                    <span id="wsStatusText">未连接</span>
+                </span>
+                <span class="username" id="usernameDisplay">未认证</span>
+                <div class="actions">
+                    <button id="connectBtn" onclick="connectWebSocket()" disabled>连接</button>
+                    <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled class="danger">断开</button>
+                    <button onclick="logout()" class="danger">退出</button>
+                </div>
             </div>
         </div>
 
-        <div class="output-area" id="outputContainer">
-            <div class="system-message">系统初始化中...</div>
-        </div>
-
-        <!-- 快捷命令 -->
-        <div class="quick-commands" id="quickCommands">
-            <button class="quick-cmd" data-cmd="whoami">whoami</button>
-            <button class="quick-cmd" data-cmd="ls -la">ls -la</button>
-            <button class="quick-cmd" data-cmd="pwd">pwd</button>
-            <button class="quick-cmd" data-cmd="uname -a">uname -a</button>
-            <button class="quick-cmd" data-cmd="ps aux">ps aux</button>
-            <button class="quick-cmd" data-cmd="df -h">df -h</button>
-            <button class="quick-cmd" data-cmd="netstat -tuln">netstat</button>
-        </div>
-
-        <!-- 输入区域 -->
-        <div class="input-area">
-            <span class="prompt-symbol">$</span>
-            <input type="text" id="commandInput" placeholder="输入命令..." autocomplete="off" disabled>
-            <button id="executeBtn" disabled>执行</button>
+        <!-- 终端 -->
+        <div class="terminal-wrapper">
+            <div id="terminal-xterm"></div>
         </div>
     </div>
 
     <script>
         (function() {
+            'use strict';
+
             // ========== 配置 ==========
-            const PROXY_BASE = '/proxy';
-            const TARGET_API_BASE = 'http://localhost:5004';
-            
-            const EXEC_API_PATH = '/exec';
-            const HEALTH_API_PATH = '/health';
-            
+            const DEBUG = true;
+            const MAX_RECONNECT_ATTEMPTS = 5;
+            const WS_URL = 'ws://127.0.0.1:5006';
+
             // ========== 全局状态 ==========
+            let ws = null;
             let isAuthenticated = false;
-            let isExecuting = false;
-            let commandHistory = [];
-            let historyIndex = -1;
+            let isTerminalReady = false;
+            let isConnecting = false;
+            let reconnectAttempts = 0;
+            let username = '';
+            let sessionId = null;
+            let terminal = null;
+            let fitAddon = null;
+            let resizeTimeout = null;
+            let terminalResizeObserver = null;
+            let inputBuffer = '';
 
             // DOM 元素
-            const statusDot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            const sessionInfo = document.getElementById('sessionInfo');
             const loginOverlay = document.getElementById('loginOverlay');
             const loginBtn = document.getElementById('loginBtn');
             const loginBtnText = document.getElementById('loginBtnText');
-            const authStatus = document.getElementById('authStatus');
-            const logoutBtn = document.getElementById('logoutBtn');
-            const outputContainer = document.getElementById('outputContainer');
-            const commandInput = document.getElementById('commandInput');
-            const executeBtn = document.getElementById('executeBtn');
-            const quickCommands = document.getElementById('quickCommands');
+            const usernameDisplay = document.getElementById('usernameDisplay');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const sessionInfo = document.getElementById('sessionInfo');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const wsDot = document.getElementById('wsDot');
+            const wsStatusText = document.getElementById('wsStatusText');
+            const terminalXterm = document.getElementById('terminal-xterm');
 
-            // ========== 工具函数 ==========
-            function getProxyUrl(endpoint) {
-                return `${PROXY_BASE}/${TARGET_API_BASE}${endpoint}`;
+            // ========== 调试日志 ==========
+            function debugLog(message, data) {
+                if (DEBUG) {
+                    console.log(`[DEBUG] ${message}`, data || '');
+                }
+            }
+
+            // ========== 通知 ==========
+            function showNotification(message, type = 'info') {
+                const existing = document.querySelector('.notification');
+                if (existing) existing.remove();
+
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transition = 'opacity 0.3s';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+
+            // ========== 更新状态 ==========
+            function updateWSStatus(connected) {
+                if (connected) {
+                    wsDot.className = 'dot-small online';
+                    wsStatusText.textContent = '已连接';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                } else {
+                    wsDot.className = 'dot-small offline';
+                    wsStatusText.textContent = '未连接';
+                    connectBtn.disabled = !isAuthenticated;
+                    disconnectBtn.disabled = true;
+                }
             }
 
             function updateStatus(status, message) {
-                statusDot.className = 'status-dot';
+                statusDot.className = 'dot';
                 switch(status) {
                     case 'connected':
-                        statusDot.classList.add('connected');
+                        statusDot.classList.add('green');
                         statusText.textContent = message || '已连接';
                         break;
+                    case 'connecting':
+                        statusDot.classList.add('yellow');
+                        statusText.textContent = message || '连接中...';
+                        break;
                     case 'error':
-                        statusDot.classList.add('error');
+                        statusDot.classList.add('red');
                         statusText.textContent = message || '连接失败';
                         break;
                     default:
-                        statusText.textContent = message || '正在连接...';
+                        statusDot.classList.add('red');
+                        statusText.textContent = message || '未连接';
                 }
             }
 
-            function showError(message) {
-                const toast = document.createElement('div');
-                toast.className = 'error-toast';
-                toast.textContent = '❌ ' + message;
-                document.body.appendChild(toast);
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    toast.style.transition = 'opacity 0.3s';
-                    setTimeout(() => toast.remove(), 300);
-                }, 4000);
+            function updateUIForAuth(authenticated) {
+                if (authenticated) {
+                    loginOverlay.classList.add('hidden');
+                    usernameDisplay.textContent = username || '用户';
+                    connectBtn.disabled = false;
+                } else {
+                    loginOverlay.classList.remove('hidden');
+                    usernameDisplay.textContent = '未认证';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = true;
+                }
             }
 
-            function getTimestamp() {
-                const now = new Date();
-                return now.toLocaleTimeString('zh-CN', { 
-                    hour12: false, 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    second: '2-digit'
+            // ========== 终端管理 ==========
+            function initTerminal() {
+                destroyTerminal();
+
+                terminalXterm.innerHTML = '';
+                
+                terminal = new Terminal({
+                    cursorBlink: true,
+                    cursorStyle: 'block',
+                    theme: {
+                        background: '#0a0a0a',
+                        foreground: '#00ff41',
+                        cursor: '#00ff41',
+                        selection: 'rgba(0, 255, 65, 0.3)',
+                        black: '#0a0a0a',
+                        red: '#ff3860',
+                        green: '#00ff41',
+                        yellow: '#ffdd57',
+                        blue: '#64b5f6',
+                        magenta: '#b388ff',
+                        cyan: '#00e5ff',
+                        white: '#f0f0f0'
+                    },
+                    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                    fontSize: 14,
+                    lineHeight: 1.2,
+                    scrollback: 10000,
+                    allowTransparency: true,
+                    macOptionIsMeta: true,
+                    convertEol: true,
+                    disableStdin: false,
+                    screenReaderMode: false
                 });
+
+                terminal.open(terminalXterm);
+
+                try {
+                    if (typeof FitAddon !== 'undefined') {
+                        fitAddon = new FitAddon.FitAddon();
+                        terminal.loadAddon(fitAddon);
+                    }
+                } catch (e) {
+                    console.error('Failed to load fit addon:', e);
+                }
+
+                if (window.ResizeObserver) {
+                    terminalResizeObserver = new ResizeObserver(() => {
+                        fitTerminalWithDelay();
+                    });
+                    terminalResizeObserver.observe(terminalXterm);
+                }
+
+                // 关键修复：处理终端输入，将 \r 转换为 \r\n
+                terminal.onData(data => {
+                    if (isTerminalReady && ws && ws.readyState === WebSocket.OPEN) {
+                        // 如果是回车键，发送 \r\n
+                        if (data === '\r') {
+                            sendRawData('\r\n');
+                        } else {
+                            sendRawData(data);
+                        }
+                    }
+                });
+
+                terminal.onResize(size => {
+                    if (isTerminalReady && ws && ws.readyState === WebSocket.OPEN) {
+                        sendMessage('resize', {
+                            cols: size.cols,
+                            rows: size.rows
+                        });
+                    }
+                });
+
+                window.addEventListener('resize', () => {
+                    fitTerminalWithDelay();
+                });
+
+                setTimeout(() => fitTerminal(), 100);
+                setTimeout(() => fitTerminal(), 300);
+                setTimeout(() => fitTerminal(), 500);
             }
 
-            function scrollToBottom() {
-                if (outputContainer) {
-                    outputContainer.scrollTop = outputContainer.scrollHeight;
+            function destroyTerminal() {
+                if (terminalResizeObserver) {
+                    terminalResizeObserver.disconnect();
+                    terminalResizeObserver = null;
+                }
+                if (terminal) {
+                    terminal.dispose();
+                    terminal = null;
+                    fitAddon = null;
+                }
+                if (resizeTimeout) {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = null;
                 }
             }
 
-            function escapeHtml(text) {
-                if (!text) return '';
-                return String(text)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
-            }
-
-            function addOutputLine(type, content) {
-                const div = document.createElement('div');
-                const timestamp = getTimestamp();
-
-                switch(type) {
-                    case 'command':
-                        div.className = 'command-line';
-                        div.innerHTML = `<span class="prompt">[${timestamp}] $</span><span class="command-text">${escapeHtml(content)}</span>`;
-                        break;
-                    case 'output':
-                        div.className = 'output-text';
-                        div.textContent = content;
-                        break;
-                    case 'error':
-                        div.className = 'error-text';
-                        div.textContent = content;
-                        break;
-                    case 'system':
-                        div.className = 'system-message';
-                        div.textContent = content;
-                        break;
-                    case 'loading':
-                        div.className = 'system-message';
-                        div.innerHTML = `<span class="loading-spinner"></span> ${escapeHtml(content)}`;
-                        break;
-                }
-
-                outputContainer.appendChild(div);
-                scrollToBottom();
-
-                // 限制输出行数
-                while (outputContainer.children.length > 500) {
-                    outputContainer.removeChild(outputContainer.firstChild);
+            function fitTerminal() {
+                if (!terminal || !fitAddon) return;
+                try {
+                    fitAddon.fit();
+                } catch (e) {
+                    console.error('Failed to fit terminal:', e);
                 }
             }
 
-            function clearOutput() {
-                outputContainer.innerHTML = '';
+            function fitTerminalWithDelay() {
+                if (resizeTimeout) clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => fitTerminal(), 100);
             }
 
-            // ========== 认证检查 ==========
+            // ========== WebSocket 连接 ==========
+            function connectWebSocket() {
+                if (isConnecting || ws) {
+                    return;
+                }
+
+                if (!isAuthenticated) {
+                    showNotification('请先验证身份', 'error');
+                    return;
+                }
+
+                isConnecting = true;
+                updateStatus('connecting', '正在连接...');
+                connectBtn.disabled = true;
+                showNotification('正在连接 WebSocket...', 'info');
+
+                debugLog(`Connecting to: ${WS_URL}`);
+
+                try {
+                    ws = new WebSocket(WS_URL);
+                } catch (e) {
+                    debugLog(`WebSocket creation error: ${e.message}`);
+                    isConnecting = false;
+                    updateStatus('error', '连接失败');
+                    connectBtn.disabled = false;
+                    showNotification(`创建连接失败: ${e.message}`, 'error');
+                    return;
+                }
+
+                ws.onopen = function() {
+                    debugLog('WebSocket connection opened');
+                    isConnecting = false;
+                    reconnectAttempts = 0;
+                    updateWSStatus(true);
+                    updateStatus('connected', '已连接');
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    showNotification('✅ WebSocket 连接已建立', 'success');
+                };
+
+                ws.onmessage = function(event) {
+                    debugLog(`Received: ${event.data.substring(0, 200)}`);
+                    handleMessage(event.data);
+                };
+
+                ws.onerror = function(error) {
+                    debugLog('WebSocket error:', error);
+                    isConnecting = false;
+                    updateStatus('error', '连接错误');
+                    connectBtn.disabled = false;
+                    showNotification('WebSocket 连接错误', 'error');
+                };
+
+                ws.onclose = function(event) {
+                    debugLog(`WebSocket closed: ${event.code}, ${event.reason}`);
+                    isConnecting = false;
+                    isTerminalReady = false;
+                    updateWSStatus(false);
+                    updateStatus('error', '已断开');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    sessionInfo.textContent = '';
+                    showNotification(`⚠️ 连接已断开`, 'warning');
+                    
+                    if (isAuthenticated) {
+                        reconnectAttempts++;
+                        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                            setTimeout(() => {
+                                if (!ws || ws.readyState === WebSocket.CLOSED) {
+                                    connectWebSocket();
+                                }
+                            }, delay);
+                        }
+                    }
+                };
+            }
+
+            function disconnectWebSocket() {
+                if (ws) {
+                    if (isTerminalReady) {
+                        sendMessage('disconnect', {});
+                    }
+                    ws.close();
+                    ws = null;
+                }
+                isTerminalReady = false;
+                sessionId = null;
+                updateWSStatus(false);
+                updateStatus('disconnected', '已断开');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sessionInfo.textContent = '';
+                showNotification('已断开连接', 'info');
+            }
+
+            // ========== 消息处理 ==========
+            function handleMessage(message) {
+                try {
+                    let data;
+                    try {
+                        data = JSON.parse(message);
+                    } catch (e) {
+                        if (terminal) {
+                            terminal.write(message);
+                        }
+                        return;
+                    }
+
+                    const msgType = data.type || '';
+
+                    switch(msgType) {
+                        case 'connected':
+                            sessionId = data.session_id;
+                            isTerminalReady = true;
+                            
+                            if (!terminal) {
+                                initTerminal();
+                            }
+                            
+                            updateStatus('connected', '终端就绪');
+                            sessionInfo.textContent = `会话: ${sessionId.substring(0, 8)}`;
+                            showNotification('✅ 终端会话已建立', 'success');
+                            
+                            if (terminal) {
+                                setTimeout(() => terminal.focus(), 100);
+                            }
+                            break;
+
+                        case 'output':
+                            if (data.data && terminal) {
+                                terminal.write(data.data);
+                            }
+                            break;
+
+                        case 'info':
+                            showNotification(data.message, 'info');
+                            break;
+
+                        case 'error':
+                            showNotification(data.message || '未知错误', 'error');
+                            if (terminal) {
+                                terminal.write(`\r\n\x1b[31m错误: ${data.message || '未知错误'}\x1b[0m\r\n`);
+                            }
+                            break;
+
+                        case 'pong':
+                            debugLog(`Pong received: ${data.timestamp}`);
+                            break;
+
+                        case 'disconnected':
+                            isTerminalReady = false;
+                            showNotification(`⚠️ ${data.message || '连接已断开'}`, 'warning');
+                            if (terminal) {
+                                terminal.write(`\r\n\x1b[33m${data.message || '连接已断开'}\x1b[0m\r\n`);
+                            }
+                            break;
+
+                        default:
+                            if (data.data && terminal) {
+                                terminal.write(data.data);
+                            } else if (data.message) {
+                                showNotification(data.message, 'info');
+                            }
+                    }
+                } catch (e) {
+                    debugLog(`Error handling message: ${e.message}`);
+                    if (terminal) {
+                        terminal.write(message);
+                    }
+                }
+            }
+
+            // ========== 发送消息 ==========
+            function sendMessage(type, data) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    return false;
+                }
+
+                const message = JSON.stringify({
+                    type: type,
+                    ...data
+                });
+                
+                try {
+                    ws.send(message);
+                    return true;
+                } catch (e) {
+                    debugLog(`Send error: ${e.message}`);
+                    return false;
+                }
+            }
+
+            function sendRawData(data) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    return false;
+                }
+
+                const message = JSON.stringify({
+                    type: 'command',
+                    command: data
+                });
+                
+                try {
+                    ws.send(message);
+                    return true;
+                } catch (e) {
+                    debugLog(`Send error: ${e.message}`);
+                    return false;
+                }
+            }
+
+            // ========== 认证 ==========
             async function checkAuth() {
                 try {
-                    updateStatus('connecting', '检查认证状态...');
+                    debugLog('Checking authentication status...');
                     
                     const response = await fetch('/api/check-auth', {
                         credentials: 'include',
@@ -643,310 +830,94 @@
                     }
                     
                     const data = await response.json();
+                    debugLog('Auth data:', data);
                     isAuthenticated = data.authenticated;
                     
                     if (isAuthenticated) {
-                        updateStatus('connected', '已认证');
-                        return true;
+                        username = data.user?.username || '用户';
+                        updateUIForAuth(true);
+                        showNotification(`✅ 已认证: ${username}`, 'success');
+                        
+                        setTimeout(() => {
+                            if (!ws || ws.readyState === WebSocket.CLOSED) {
+                                connectWebSocket();
+                            }
+                        }, 500);
                     } else {
-                        updateStatus('error', '未认证');
-                        return false;
+                        updateUIForAuth(false);
+                        showNotification('🔒 请先登录文件浏览器', 'warning');
                     }
                 } catch (error) {
                     console.warn('认证检查失败:', error);
-                    
-                    // 尝试直接检查后端健康状态
-                    try {
-                        const healthUrl = getProxyUrl(HEALTH_API_PATH);
-                        const response = await fetch(healthUrl, { credentials: 'include' });
-                        if (response.ok) {
-                            const healthData = await response.json();
-                            if (healthData.status === 'ok') {
-                                updateStatus('connected', '后端可用');
-                                return true;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('后端健康检查失败:', e);
-                    }
-                    
-                    updateStatus('error', '连接失败');
-                    return false;
+                    updateUIForAuth(false);
+                    showNotification('认证检查失败，请刷新重试', 'error');
                 }
             }
 
-            // ========== API请求 ==========
-            async function executeCommand(command) {
-                const url = getProxyUrl(EXEC_API_PATH);
-                
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ command: command })
-                    });
-
-                    if (!response.ok) {
-                        if (response.status === 401 || response.status === 403) {
-                            isAuthenticated = false;
-                            updateUIForAuth(false);
-                            throw new Error('认证失败，请重新登录文件浏览器');
-                        }
-                        const errorData = await response.json().catch(() => ({}));
-                        throw new Error(errorData.message || `请求失败 (${response.status})`);
-                    }
-
-                    return await response.json();
-                } catch (error) {
-                    if (error.message.includes('认证失败')) {
-                        handleAuthFailure();
-                    }
-                    throw error;
-                }
-            }
-
-            // ========== 认证失败处理 ==========
-            function handleAuthFailure() {
-                isAuthenticated = false;
-                updateUIForAuth(false);
-                updateStatus('error', '认证已过期');
-                authStatus.textContent = '未认证';
-                authStatus.className = '';
-                addOutputLine('system', '⚠️ 认证已过期，请重新验证身份');
-                showError('认证已过期，请刷新页面重新登录文件浏览器');
-            }
-
-            // ========== UI更新 ==========
-            function updateUIForAuth(authenticated) {
-                if (authenticated) {
-                    loginOverlay.classList.add('hidden');
-                    commandInput.disabled = false;
-                    executeBtn.disabled = false;
-                    authStatus.textContent = '已认证';
-                    authStatus.className = 'authenticated';
-                    commandInput.focus();
-                    updateStatus('connected', '就绪');
-                } else {
-                    loginOverlay.classList.remove('hidden');
-                    commandInput.disabled = true;
-                    executeBtn.disabled = true;
-                    authStatus.textContent = '未认证';
-                    authStatus.className = '';
-                    updateStatus('error', '需要认证');
-                }
-            }
-
-            // ========== 命令处理 ==========
-            async function handleExecuteCommand() {
-                const command = commandInput.value.trim();
-                
-                if (!command || isExecuting || !isAuthenticated) return;
-                
-                // 添加到命令历史
-                if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== command) {
-                    commandHistory.push(command);
-                }
-                historyIndex = commandHistory.length;
-
-                // 显示命令
-                addOutputLine('command', command);
-                
-                isExecuting = true;
-                executeBtn.disabled = true;
-                commandInput.disabled = true;
-                
-                const loadingElement = addOutputLine('loading', '执行中...');
-                
-                try {
-                    const result = await executeCommand(command);
-                    
-                    // 移除loading
-                    const loadingDiv = outputContainer.querySelector('.system-message:last-child');
-                    if (loadingDiv && loadingDiv.querySelector('.loading-spinner')) {
-                        loadingDiv.remove();
-                    }
-                    
-                    // 显示结果
-                    if (result.stdout) {
-                        addOutputLine('output', result.stdout);
-                    }
-                    
-                    if (result.stderr) {
-                        addOutputLine('error', result.stderr);
-                    }
-                    
-                    if (result.return_code !== undefined) {
-                        const exitMsg = result.return_code === 0 ? 
-                            `[退出码: ${result.return_code}]` : 
-                            `[退出码: ${result.return_code} - 执行异常]`;
-                        addOutputLine('system', exitMsg);
-                    }
-                    
-                    if (!result.stdout && !result.stderr) {
-                        addOutputLine('system', '[无输出]');
-                    }
-                    
-                } catch (error) {
-                    const loadingDiv = outputContainer.querySelector('.system-message:last-child');
-                    if (loadingDiv && loadingDiv.querySelector('.loading-spinner')) {
-                        loadingDiv.remove();
-                    }
-                    
-                    addOutputLine('error', `执行失败: ${error.message}`);
-                } finally {
-                    isExecuting = false;
-                    executeBtn.disabled = false;
-                    commandInput.disabled = false;
-                    commandInput.value = '';
-                    commandInput.focus();
-                    scrollToBottom();
-                }
-            }
-
-            // ========== 事件处理 ==========
             async function handleLogin() {
                 loginBtn.disabled = true;
                 loginBtnText.textContent = '验证中...';
+                debugLog('Login button clicked');
                 
-                const authenticated = await checkAuth();
+                await checkAuth();
                 
-                if (authenticated) {
-                    isAuthenticated = true;
-                    updateUIForAuth(true);
-                    addOutputLine('system', '✅ 认证成功，命令执行控制台已就绪');
-                    addOutputLine('system', '💡 提示: 输入命令后按回车或点击"执行"按钮');
-                    addOutputLine('system', '🔍 可使用下方快捷命令或输入自定义命令');
-                    
-                    // 尝试连接后端
-                    try {
-                        const healthUrl = getProxyUrl(HEALTH_API_PATH);
-                        const response = await fetch(healthUrl, { credentials: 'include' });
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.status === 'ok') {
-                                addOutputLine('system', '🔗 后端服务连接成功');
-                                updateStatus('connected', '就绪');
-                                sessionInfo.textContent = '会话已建立';
-                            }
-                        }
-                    } catch (e) {
-                        addOutputLine('error', '⚠️ 后端服务连接失败: ' + e.message);
-                        updateStatus('error', '后端不可达');
-                    }
+                if (isAuthenticated) {
+                    loginBtnText.textContent = '✅ 已验证';
+                    setTimeout(() => {
+                        loginBtn.disabled = false;
+                        loginBtnText.textContent = '验证身份';
+                    }, 2000);
                 } else {
-                    addOutputLine('error', '❌ 认证失败，请确保已登录文件浏览器');
-                    showError('请先登录文件浏览器后再使用命令执行功能');
                     loginBtn.disabled = false;
                     loginBtnText.textContent = '重新验证';
+                    showNotification('认证失败，请先登录文件浏览器', 'error');
                 }
             }
 
-            function handleLogout() {
+            function logout() {
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
                 isAuthenticated = false;
+                isTerminalReady = false;
+                isConnecting = false;
+                sessionId = null;
                 updateUIForAuth(false);
-                clearOutput();
-                addOutputLine('system', '已退出，会话结束');
-                updateStatus('error', '已断开');
+                updateWSStatus(false);
+                updateStatus('disconnected', '已断开');
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = true;
                 sessionInfo.textContent = '';
+                showNotification('已退出登录', 'info');
             }
-
-            // ========== 事件绑定 ==========
-            loginBtn.addEventListener('click', handleLogin);
-
-            logoutBtn.addEventListener('click', handleLogout);
-
-            executeBtn.addEventListener('click', handleExecuteCommand);
-
-            commandInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleExecuteCommand();
-                }
-            });
-
-            // 命令历史导航
-            commandInput.addEventListener('keydown', (e) => {
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    if (historyIndex > 0) {
-                        historyIndex--;
-                        commandInput.value = commandHistory[historyIndex] || '';
-                    }
-                } else if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    if (historyIndex < commandHistory.length - 1) {
-                        historyIndex++;
-                        commandInput.value = commandHistory[historyIndex] || '';
-                    } else {
-                        historyIndex = commandHistory.length;
-                        commandInput.value = '';
-                    }
-                }
-            });
-
-            // 快捷命令
-            quickCommands.addEventListener('click', (e) => {
-                if (e.target.classList.contains('quick-cmd') && isAuthenticated && !isExecuting) {
-                    const cmd = e.target.dataset.cmd;
-                    if (cmd) {
-                        commandInput.value = cmd;
-                        handleExecuteCommand();
-                    }
-                }
-            });
-
-            // 页面卸载前清理
-            window.addEventListener('beforeunload', () => {
-                // 清理工作
-            });
 
             // ========== 初始化 ==========
-            async function init() {
-                console.log('命令执行控制台初始化...');
-                updateStatus('connecting', '正在连接...');
-                addOutputLine('system', '🔌 正在初始化命令执行控制台...');
-                
-                // 检查认证状态
-                const authenticated = await checkAuth();
-                
-                if (authenticated) {
-                    isAuthenticated = true;
-                    updateUIForAuth(true);
-                    addOutputLine('system', '✅ 认证状态有效');
-                    
-                    // 检查后端
-                    try {
-                        const healthUrl = getProxyUrl(HEALTH_API_PATH);
-                        const response = await fetch(healthUrl, { credentials: 'include' });
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.status === 'ok') {
-                                addOutputLine('system', '🔗 后端服务: 运行中');
-                                updateStatus('connected', '就绪');
-                                sessionInfo.textContent = '就绪';
-                            }
-                        }
-                    } catch (e) {
-                        addOutputLine('error', '⚠️ 后端服务不可达，但可以继续使用');
-                        updateStatus('error', '后端不可达');
+            function init() {
+                console.log('交互式终端初始化...');
+                loginBtn.addEventListener('click', handleLogin);
+                checkAuth();
+
+                document.addEventListener('click', function() {
+                    if (terminal && isTerminalReady) {
+                        terminal.focus();
                     }
-                    
-                    addOutputLine('system', '💡 输入命令开始使用...');
-                    commandInput.focus();
-                } else {
-                    updateUIForAuth(false);
-                    addOutputLine('system', '🔒 需要认证后才能使用命令执行功能');
-                    addOutputLine('system', '👆 请点击上方按钮验证身份');
-                }
-                
-                console.log('初始化完成, 认证状态:', authenticated);
+                });
             }
 
+            window.addEventListener('beforeunload', function() {
+                if (ws) {
+                    ws.close();
+                }
+            });
+
+            // 暴露全局函数
+            window.connectWebSocket = connectWebSocket;
+            window.disconnectWebSocket = disconnectWebSocket;
+            window.logout = logout;
+
             init();
+
         })();
     </script>
 </body>
